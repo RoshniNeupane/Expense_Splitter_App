@@ -28,7 +28,7 @@ class GroupViewSet(viewsets.ModelViewSet):
         return GroupSerializer
 
     def get_queryset(self):
-        return Group.objects.filter(expense_groups__user=self.request.user, is_active=True).distinct()
+        return Group.objects.filter(members=self.request.user, is_active=True).distinct()
 
     def perform_create(self, serializer):
         group = serializer.save(created_by=self.request.user)
@@ -114,8 +114,8 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         group_id = self.kwargs.get('group_pk')
         if group_id:
-            return Expense.objects.filter(group_id=group_id, group__expense_groups=self.request.user)
-        return Expense.objects.filter(group__expense_groups=self.request.user)
+            return Expense.objects.filter(group_id=group_id, group__members=self.request.user).distinct()
+        return Expense.objects.filter(group__members=self.request.user).distinct()
 
     def perform_create(self, serializer):
         group_id = self.kwargs.get('group_pk')
@@ -187,14 +187,14 @@ class ActivityListView(generics.ListAPIView):
         group_id = self.kwargs.get('group_pk')
         if group_id:
             return Activity.objects.filter(group_id=group_id)
-        return Activity.objects.filter(group__expense_groups=self.request.user)
+        return Activity.objects.filter(group__members=self.request.user).distinct()
 
 class DashboardView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         user = request.user
-        groups = Group.objects.filter(expense_groups=user, is_active=True).distinct()
+        groups = Group.objects.filter(members=user, is_active=True).distinct()
         total_paid = Expense.objects.filter(paid_by=user).aggregate(t=Sum('amount'))['t'] or 0
         total_owed = ExpenseSplit.objects.filter(user=user, is_settled=False).aggregate(t=Sum('amount'))['t'] or 0
         pending_settlements = Settlement.objects.filter(
